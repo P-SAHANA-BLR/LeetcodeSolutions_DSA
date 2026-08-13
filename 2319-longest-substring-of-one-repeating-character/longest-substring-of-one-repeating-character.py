@@ -1,88 +1,83 @@
 from typing import List
 
-class SegmentTreeNode:
-    __slots__ = ['max_len', 'pref_len', 'suff_len', 'size', 'left_char', 'right_char']
-    def __init__(self, char: str = ''):
-        # Initialize a leaf node representing a single character
-        self.max_len = 1 if char else 0
-        self.pref_len = 1 if char else 0
-        self.suff_len = 1 if char else 0
-        self.size = 1 if char else 0
-        self.left_char = char
-        self.right_char = char
-
 class Solution:
     def longestRepeating(self, s: str, queryCharacters: str, queryIndices: List[int]) -> List[int]:
         n = len(s)
-        # Using a 1D array of nodes for cache locality and speed
-        tree = [None] * (4 * n)
-        s_list = list(s)
         
-        def merge(left: SegmentTreeNode, right: SegmentTreeNode) -> SegmentTreeNode:
-            parent = SegmentTreeNode()
-            parent.size = left.size + right.size
-            parent.left_char = left.left_char
-            parent.right_char = right.right_char
+        # 1. Expand size to the next power of 2 for a perfectly balanced iterative tree
+        size = 1
+        while size < n:
+            size *= 2
             
-            # Initial boundaries take inner child values
-            parent.pref_len = left.pref_len
-            parent.suff_len = right.suff_len
-            parent.max_len = max(left.max_len, right.max_len)
+        # 2. Pre-allocate parallel flat arrays to avoid object overhead
+        max_len = [0] * (2 * size)
+        pref_len = [0] * (2 * size)
+        suff_len = [0] * (2 * size)
+        left_char = [''] * (2 * size)
+        right_char = [''] * (2 * size)
+        node_size = [0] * (2 * size)
+        
+        # 3. Initialize leaf nodes at the base level (indices size to size + n - 1)
+        for i in range(n):
+            idx = size + i
+            max_len[idx] = 1
+            pref_len[idx] = 1
+            suff_len[idx] = 1
+            left_char[idx] = s[i]
+            right_char[idx] = s[i]
+            node_size[idx] = 1
             
-            # If the boundary characters match, bridge them
-            if left.right_char == right.left_char:
-                combined_mid = left.suff_len + right.pref_len
-                if parent.max_len < combined_mid:
-                    parent.max_len = combined_mid
-                
-                # Extend prefix if the entire left side matches the start of the right side
-                if left.pref_len == left.size:
-                    parent.pref_len = left.size + right.pref_len
-                
-                # Extend suffix if the entire right side matches the end of the left side
-                if right.suff_len == right.size:
-                    parent.suff_len = right.size + left.suff_len
+        # Initialize remaining dummy nodes to avoid boundary issues
+        for i in range(n, size):
+            node_size[size + i] = 1
+            
+        # 4. Iterative tree building function (bottom-up merge logic)
+        def pull(i: int):
+            left = 2 * i
+            right = 2 * i + 1
+            
+            node_size[i] = node_size[left] + node_size[right]
+            left_char[i] = left_char[left]
+            right_char[i] = right_char[right]
+            
+            m_len = max(max_len[left], max_len[right])
+            p_len = pref_len[left]
+            s_len = suff_len[right]
+            
+            # Bridge boundary strings if adjacent characters match
+            if right_char[left] == left_char[right]:
+                mid = suff_len[left] + pref_len[right]
+                if mid > m_len: 
+                    m_len = mid
+                if pref_len[left] == node_size[left]:
+                    p_len = node_size[left] + pref_len[right]
+                if suff_len[right] == node_size[right]:
+                    s_len = node_size[right] + suff_len[left]
                     
-            return parent
+            max_len[i] = m_len
+            pref_len[i] = p_len
+            suff_len[i] = s_len
 
-        def build(node: int, start: int, end: int):
-            if start == end:
-                tree[node] = SegmentTreeNode(s_list[start])
-                return
-            mid = (start + end) // 2
-            left_node = 2 * node
-            right_node = 2 * node + 1
-            build(left_node, start, mid)
-            build(right_node, mid + 1, end)
-            tree[node] = merge(tree[left_node], tree[right_node])
-
-        def update(node: int, start: int, end: int, idx: int, char: str):
-            if start == end:
-                tree[node] = SegmentTreeNode(char)
-                return
-            mid = (start + end) // 2
-            left_node = 2 * node
-            right_node = 2 * node + 1
-            if start <= idx <= mid:
-                update(left_node, start, mid, idx, char)
-            else:
-                update(right_node, mid + 1, end, idx, char)
-            tree[node] = merge(tree[left_node], tree[right_node])
-
-        # Step 1: Construct the initial segment tree
-        build(1, 0, n - 1)
-        
-        # Step 2: Execute queries and store maximum lengths
-        ans = []
-        for i in range(len(queryIndices)):
-            idx = queryIndices[i]
-            char = queryCharacters[i]
+        # Fill the segment tree from base to root
+        for i in range(size - 1, 0, -1):
+            pull(i)
             
-            # Only update if the character actually changes to save processing time
-            if s_list[idx] != char:
-                s_list[idx] = char
-                update(1, 0, n - 1, idx, char)
+        # 5. Process queries iteratively
+        ans = []
+        for q_char, q_idx in zip(queryCharacters, queryIndices):
+            idx = size + q_idx
+            
+            # Fast-forward path: Skip update if character did not change
+            if left_char[idx] != q_char:
+                left_char[idx] = q_char
+                right_char[idx] = q_char
                 
-            ans.append(tree[1].max_len)
+                # Move up the tree iteratively to update affected parents
+                idx //= 2
+                while idx > 0:
+                    pull(idx)
+                    idx //= 2
+                    
+            ans.append(max_len[1])
             
         return ans
