@@ -1,16 +1,16 @@
 class Solution:
     def maxProduct(self, n: int) -> int:
-        first_max = 0
-        second_max = 0
+        s = str(n)
+        first = -1
         
-        while n > 0:
-            digit = n % 10
-            n //= 10
-            
-            if digit > first_max:
-                second_max = first_max
-                first_max = digit
-            elif digit > second_max:
-                second_max = digit
-                
-        return first_max * second_max
+        # Unrolled digit tracking to completely avoid int() conversion overhead
+        for d, val in (('9', 9), ('8', 8), ('7', 7), ('6', 6), ('5', 5), 
+                       ('4', 4), ('3', 3), ('2', 2), ('1', 1), ('0', 0)):
+            c = s.count(d)
+            if c:
+                if first == -1:
+                    if c > 1:
+                        return val * val  # Both highest digits are the same
+                    first = val
+                else:
+                    return first * val    # Found the second highest digit
