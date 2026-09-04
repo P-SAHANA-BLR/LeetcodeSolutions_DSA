@@ -1,0 +1,18 @@
+class Solution:
+    def firstStableIndex(self, nums: list[int], k: int) -> int:
+        n = len(nums)
+        
+        # Step 1: Precompute suffix minimums
+        suff_min = [0] * n
+        suff_min[-1] = nums[-1]
+        for i in range(n - 2, -1, -1):
+            suff_min[i] = min(suff_min[i + 1], nums[i])
+            
+        # Step 2: Iterate to maintain prefix maximums and check stability
+        curr_max = -1
+        for i in range(n):
+            curr_max = max(curr_max, nums[i])
+            if curr_max - suff_min[i] <= k:
+                return i
+                
+        return -1
